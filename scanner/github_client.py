@@ -1,5 +1,9 @@
 import requests
 import random
+import os
+import json
+from datetime import datetime
+import config
 
 class GitHubClient:
     def __init__(self, token):
@@ -92,6 +96,22 @@ class GitHubClient:
             except Exception as e:
                 print(f"Network error during search: {e}")
                 
+        # Save results to cache
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            cache_repos_dir = os.path.join(base_dir, "cache", "found_repos")
+            os.makedirs(cache_repos_dir, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            output_file = os.path.join(cache_repos_dir, f"found_repos_{timestamp}.json")
+            
+            with open(output_file, "w", encoding="utf-8") as f:
+                json.dump(found_repos, f, indent=4, ensure_ascii=False)
+                
+            print(f"Saved {len(found_repos)} repositories to: {output_file}")
+        except Exception as e:
+            print(f"Failed to save results to cache: {e}")
+
         return found_repos
 
     # Removed _search_with_filtering as it is now integrated into the main method.
@@ -99,9 +119,6 @@ class GitHubClient:
 
 if __name__ == "__main__":
     import sys
-    import os
-    import json
-    from datetime import datetime
     
     # Add parent directory to path to import config
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -110,15 +127,4 @@ if __name__ == "__main__":
     client = GitHubClient(token=config.GITHUB_TOKEN)
     repos = client.search_repositories(max_stars=10, limit=5)
     
-    # Ensure cache directory exists
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cache_repos_dir = os.path.join(base_dir, "cache", "found_repos")
-    os.makedirs(cache_repos_dir, exist_ok=True)
-    
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    output_file = os.path.join(cache_repos_dir, f"found_repos_{timestamp}.json")
-    
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(repos, f, indent=4, ensure_ascii=False)
-        
-    print(f"Found {len(repos)} repositories. Results saved to: {output_file}")
+    print(f"Found {len(repos)} repositories.")
