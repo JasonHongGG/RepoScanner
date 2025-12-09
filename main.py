@@ -12,7 +12,7 @@ from scanner.pattern_matcher import PatternMatcher
 from config import PATTERNS, GITHUB_TOKEN
 from utils.history import load_scanned_ids, mark_as_scanned
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def save_results(results, filename):
     # Ensure directory exists
@@ -36,6 +36,8 @@ def main():
     parser.add_argument("--depth", type=int, default=10, help="Commit depth for history scan")
     parser.add_argument("--count", type=int, default=5, help="Number of repositories to scan")
     parser.add_argument("--max-stars", type=int, default=10, help="Max stars for target repos")
+    parser.add_argument("--repo-age", type=int, default=0, help="Repo age in months (0=any)")
+    parser.add_argument("--file-age", type=int, default=0, help="File age in months (0=any)")
     parser.add_argument("--repo", type=str, help="Specific repository URL to scan (bypasses random search)")
     
     args = parser.parse_args()
@@ -72,8 +74,14 @@ def main():
         scanned_ids = load_scanned_ids()
         logger.info(f"Loaded {len(scanned_ids)} previously scanned repositories.")
         
+        min_created = None
+        if args.repo_age > 0:
+            date_threshold = datetime.now() - timedelta(days=args.repo_age * 30)
+            min_created = date_threshold.strftime("%Y-%m-%d")
+            logger.info(f"Filtering repos created after: {min_created}")
+        
         logger.info(f"Searching for {args.count} random repositories (Max Stars: {args.max_stars})...")
-        repos = client.search_repositories(max_stars=args.max_stars, limit=args.count, exclude_ids=scanned_ids)
+        repos = client.search_repositories(max_stars=args.max_stars, limit=args.count, exclude_ids=scanned_ids, min_created_date=min_created)
     
     if not repos:
         logger.error("No repositories found via search.")
@@ -99,11 +107,11 @@ def main():
             
         repo_findings = []
         if args.mode == 'history':
-            logger.info(f"Scanning history (depth={args.depth})...")
-            repo_findings = repo_processor.scan_history(local_path, depth=args.depth, scanner_func=matcher.scan_text)
+            logger.info(f"Scanning history (depth={args.depth}, max_file_age={args.file_age}m)...")
+            repo_findings = repo_processor.scan_history(local_path, depth=args.depth, scanner_func=matcher.scan_text, max_file_age_months=args.file_age)
         else:
-            logger.info("Scanning current files...")
-            repo_findings = repo_processor.scan_current_files(local_path, scanner_func=matcher.scan_text)
+            logger.info(f"Scanning current files (max_file_age={args.file_age}m)...")
+            repo_findings = repo_processor.scan_current_files(local_path, scanner_func=matcher.scan_text, max_file_age_months=args.file_age)
             
         # Post-process findings to add repo metadata
         for f in repo_findings:

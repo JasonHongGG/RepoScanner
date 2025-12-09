@@ -7,7 +7,7 @@ class GitHubClient:
         self.base_url = "https://api.github.com"
         self.headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
 
-    def search_repositories(self, max_stars=10, limit=5, exclude_ids=None):
+    def search_repositories(self, max_stars=10, limit=5, exclude_ids=None, min_created_date=None):
         """
         Finds random repositories using the GitHub Search API.
         We use random character queries + star filters to find diverse, non-popular repos.
@@ -40,6 +40,9 @@ class GitHubClient:
             
             # precise filter: query + max stars + recent push (optional, to avoid dead repos)
             q = f"{query_str} stars:<={max_stars} pushed:>2024-01-01 size:>0"
+            
+            if min_created_date:
+                q += f" created:>{min_created_date}"
             
             params = {
                 "q": q,

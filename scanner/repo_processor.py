@@ -2,6 +2,7 @@ import git
 import os
 import shutil
 import stat
+from datetime import datetime, timezone, timedelta
 
 class RepoProcessor:
     def __init__(self, temp_dir="cache"):
@@ -44,7 +45,7 @@ class RepoProcessor:
             print(f"Failed to clone {repo_url}: {e}")
             return None
 
-    def scan_history(self, repo_path, depth=10, scanner_func=None):
+    def scan_history(self, repo_path, depth=10, scanner_func=None, max_file_age_months=None):
         """
         Scans the commit history for secrets.
         scanner_func: Callback function (text) -> matches
@@ -57,7 +58,21 @@ class RepoProcessor:
             
             print(f"Scanning {len(commits)} commits...")
             
+            # Calculate cutoff date if needed
+            cutoff_date = None
+            if max_file_age_months and max_file_age_months > 0:
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=max_file_age_months*30)
+            
             for commit in commits:
+                # Check commit age
+                if cutoff_date and commit.committed_datetime < cutoff_date:
+                    # If this commit is too old, and we assume commits are ordered, we could break?
+                    # But branches/merges might make it non-linear. safely continue or break?
+                    # Usually iter_commits is reverse chronological.
+                    # Let's break to be efficient, assuming mostly linear history from HEAD.
+                    # Or just continue to be safe. Let's continue.
+                    continue
+
                 # Scan commit message
                 if scanner_func:
                     msg_matches = scanner_func(commit.message)
@@ -99,16 +114,47 @@ class RepoProcessor:
             
         return results
 
-    def scan_current_files(self, repo_path, scanner_func):
+    def scan_current_files(self, repo_path, scanner_func, max_file_age_months=None):
         """
         Scans the current checkout files on disk.
         """
         results = []
+        
+        cutoff_timestamp = 0
+        if max_file_age_months and max_file_age_months > 0:
+             # Unix timestamp for cutoff
+             cutoff_timestamp = (datetime.now() - timedelta(days=max_file_age_months*30)).timestamp()
+
+        # Initialize repo object once for git commands
+        try:
+            repo = git.Repo(repo_path)
+        except:
+            repo = None
+
         for root, _, files in os.walk(repo_path):
             if ".git" in root:
                 continue
             for file in files:
                 file_path = os.path.join(root, file)
+                
+                # Check file age if requested
+                if cutoff_timestamp > 0 and repo:
+                    try:
+                        # Get relative path for git command
+                        rel_path = os.path.relpath(file_path, repo_path)
+                        # Get last commit timestamp for this file
+                        # -1: last commit, --format=%ct: commit time as unix timestamp
+                        last_commit_ts = repo.git.log('-1', '--format=%ct', '--', rel_path)
+                        if last_commit_ts and int(last_commit_ts) < cutoff_timestamp:
+                            continue # Skip old file
+                    except Exception as e:
+                        # If git fails, maybe just proceed? or skip?
+                        # Proceeding is safer to not miss secrets, but adhering to user rule -> skip?
+                        # Let's Skip if we can't determine age to be safe? Or include?
+                        # Error usually means file is not tracked. If not tracked, it's new/untracked?
+                        # scan unwatched files? Let's treat untracked as "new" (keep them).
+                        pass
+
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
