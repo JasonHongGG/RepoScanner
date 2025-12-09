@@ -43,10 +43,18 @@ class GitHubClient:
             search_url = f"{self.base_url}/search/repositories"
             
             # precise filter: query + max stars + recent push (optional, to avoid dead repos)
-            q = f"{query_str} stars:<={max_stars} pushed:>{config.MIN_PUSHED_DATE} size:>0"
+            # precise filter: query + max stars + recent push (optional, to avoid dead repos)
+            query_parts = [
+                query_str,
+                f"stars:<={max_stars}",
+                f"pushed:>{config.MIN_PUSHED_DATE}",
+                "size:>0"
+            ]
             
             if min_created_date:
-                q += f" created:>{min_created_date}"
+                query_parts.append(f"created:>{min_created_date}")
+            
+            q = " ".join(query_parts)
             
             params = {
                 "q": q,
