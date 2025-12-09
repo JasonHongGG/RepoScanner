@@ -6,10 +6,11 @@ from utils.logger import setup_logger
 import csv
 import sys
 import os
+import json
 from scanner.github_client import GitHubClient
 from scanner.repo_processor import RepoProcessor
 from scanner.pattern_matcher import PatternMatcher
-from config import PATTERNS, GITHUB_TOKEN
+from config import PATTERNS, GITHUB_TOKEN, OUTPUT_FORMAT
 from utils.history import load_scanned_ids, mark_as_scanned
 
 from datetime import datetime, timedelta
@@ -26,6 +27,23 @@ def save_results(results, filename):
         
         for r in results:
             writer.writerow(r)
+
+def save_results_json(results, filename):
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    
+    current_data = []
+    if os.path.isfile(filename):
+        try:
+            with open(filename, 'r', encoding='utf-8') as f:
+                current_data = json.load(f)
+        except json.JSONDecodeError:
+            pass # Start fresh if corrupt
+            
+    current_data.extend(results)
+    
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(current_data, f, indent=4, ensure_ascii=False)
 
 def main():
     logger = setup_logger()
@@ -45,7 +63,10 @@ def main():
     # Setup Results File
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     results_dir = "results"
-    results_file = os.path.join(results_dir, f"scan_results_{timestamp}.csv")
+    
+    extension = "json" if OUTPUT_FORMAT == "json" else "csv"
+    results_file = os.path.join(results_dir, f"scan_results_{timestamp}.{extension}")
+    
     logger.info(f"Results will be saved to: {results_file}")
     
     if not GITHUB_TOKEN or "your_github_pat" in GITHUB_TOKEN:
@@ -130,7 +151,10 @@ def main():
                 
         if repo_findings:
             logger.warning(f"FOUND {len(repo_findings)} SECRETS in {repo_full_name}!")
-            save_results(repo_findings, results_file)
+            if OUTPUT_FORMAT == 'json':
+                save_results_json(repo_findings, results_file)
+            else:
+                save_results(repo_findings, results_file)
             total_findings += len(repo_findings)
         else:
             logger.info(f"No secrets found in {repo_full_name}.")
@@ -141,7 +165,7 @@ def main():
             
         # Cleanup
         repo_processor.delete_repo(local_path)
-
+    
     logger.info(f"Scan complete. Total findings: {total_findings}. Results saved to {results_file}")
 
 if __name__ == "__main__":
