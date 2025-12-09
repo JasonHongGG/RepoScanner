@@ -28,5 +28,7 @@ PATTERNS = {
     "MONGO_URI": r"mongodb(\+srv)?:\/\/[a-zA-Z0-9_\-]+:[a-zA-Z0-9_\-]+@",
 }
 
+SUSPICIOUS_REPO_NAME_PATTERN = r'^[0-9a-fA-F]{30,}$'
+
 # Search Configuration
 MAX_STARS = 10  # We want low-star repos

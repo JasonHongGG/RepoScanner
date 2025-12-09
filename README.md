@@ -51,6 +51,11 @@ python main.py --count 10 --mode history --depth 20
 python main.py --repo https://github.com/octocat/Hello-World.git --mode history
 ```
 
+**Run a scan on 10 repos, checking last 20 commits, with max stars of 200, repo age of 12 months, and file age of 6 months:**
+``` powershell
+python main.py --count 10 --max-stars 200 --mode current --repo-age 12 --file-age 6
+```
+
 ## Results
 
 - **Console Output**: Shows progress and findings in real-time.

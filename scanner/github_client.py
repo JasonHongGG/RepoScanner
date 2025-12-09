@@ -2,6 +2,7 @@ import requests
 import random
 import os
 import json
+import re
 from datetime import datetime
 import config
 
@@ -91,6 +92,11 @@ class GitHubClient:
                         if item.get('stargazers_count', 0) > max_stars:
                             continue
                             
+                        # Additional Filter: Suspicious Names (e.g. random hex strings)
+                        if config.SUSPICIOUS_REPO_NAME_PATTERN and re.match(config.SUSPICIOUS_REPO_NAME_PATTERN, item.get('name', '')):
+                            print(f"Skipping suspicious repo: {item.get('name')}")
+                            continue
+
                         # Add to list
                         found_repos.append(item)
                         exclude_ids.add(repo_id) # Temporary add to prevent dupes in same batch
