@@ -3,3 +3,5 @@
 /cache
 /results
 /.venv
+*debug*
+*test*
