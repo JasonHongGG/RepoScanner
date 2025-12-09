@@ -2,6 +2,7 @@ import git
 import os
 import shutil
 import stat
+import logging
 from datetime import datetime, timezone, timedelta
 
 class RepoProcessor:
@@ -131,6 +132,21 @@ class RepoProcessor:
         except:
             repo = None
 
+        # Optimization: If filtering by file age, get a list of modified files in bulk
+        allowed_files = None
+        if max_file_age_months and max_file_age_months > 0:
+            cutoff_timestamp = (datetime.now() - timedelta(days=max_file_age_months*30)).timestamp()
+            if repo:
+                try:
+                    since_date = (datetime.now() - timedelta(days=max_file_age_months*30)).strftime("%Y-%m-%d")
+                    # git log --since="2023-01-01" --name-only --pretty=format:
+                    output = repo.git.log(f'--since={since_date}', '--name-only', '--pretty=format:')
+                    # Normalize paths to use forward slashes for comparison
+                    allowed_files = set([f.strip().replace('\\', '/') for f in output.splitlines() if f.strip()])
+                    logging.getLogger().info(f"Filtered to {len(allowed_files)} recently modified files.")
+                except Exception as e:
+                    logging.getLogger().warning(f"Failed to filter files by age: {e}. Scanning all files.")
+
         for root, _, files in os.walk(repo_path):
             if ".git" in root:
                 continue
@@ -138,22 +154,11 @@ class RepoProcessor:
                 file_path = os.path.join(root, file)
                 
                 # Check file age if requested
-                if cutoff_timestamp > 0 and repo:
-                    try:
-                        # Get relative path for git command
-                        rel_path = os.path.relpath(file_path, repo_path)
-                        # Get last commit timestamp for this file
-                        # -1: last commit, --format=%ct: commit time as unix timestamp
-                        last_commit_ts = repo.git.log('-1', '--format=%ct', '--', rel_path)
-                        if last_commit_ts and int(last_commit_ts) < cutoff_timestamp:
-                            continue # Skip old file
-                    except Exception as e:
-                        # If git fails, maybe just proceed? or skip?
-                        # Proceeding is safer to not miss secrets, but adhering to user rule -> skip?
-                        # Let's Skip if we can't determine age to be safe? Or include?
-                        # Error usually means file is not tracked. If not tracked, it's new/untracked?
-                        # scan unwatched files? Let's treat untracked as "new" (keep them).
-                        pass
+                if allowed_files is not None:
+                    # Get relative path and normalize to forward slashes
+                    rel_path = os.path.relpath(file_path, repo_path).replace('\\', '/')
+                    if rel_path not in allowed_files:
+                        continue # Skip old file
 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
