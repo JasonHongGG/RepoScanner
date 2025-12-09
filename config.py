@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+MIN_PUSHED_DATE = os.getenv("MIN_PUSHED_DATE", "2024-01-01")
 SEARCH_QUERY_LIMIT = 1000  # Safety limit
 
 # Regex Patterns for Secrets

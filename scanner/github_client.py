@@ -39,7 +39,7 @@ class GitHubClient:
             search_url = f"{self.base_url}/search/repositories"
             
             # precise filter: query + max stars + recent push (optional, to avoid dead repos)
-            q = f"{query_str} stars:<={max_stars} pushed:>2024-01-01 size:>0"
+            q = f"{query_str} stars:<={max_stars} pushed:>{config.MIN_PUSHED_DATE} size:>0"
             
             if min_created_date:
                 q += f" created:>{min_created_date}"
@@ -101,6 +101,7 @@ if __name__ == "__main__":
     import sys
     import os
     import json
+    from datetime import datetime
     
     # Add parent directory to path to import config
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -110,10 +111,12 @@ if __name__ == "__main__":
     repos = client.search_repositories(max_stars=10, limit=5)
     
     # Ensure cache directory exists
-    cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cache")
-    os.makedirs(cache_dir, exist_ok=True)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cache_repos_dir = os.path.join(base_dir, "cache", "found_repos")
+    os.makedirs(cache_repos_dir, exist_ok=True)
     
-    output_file = os.path.join(cache_dir, "found_repos.json")
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_file = os.path.join(cache_repos_dir, f"found_repos_{timestamp}.json")
     
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(repos, f, indent=4, ensure_ascii=False)
